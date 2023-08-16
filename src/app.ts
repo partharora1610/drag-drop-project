@@ -1,4 +1,71 @@
-import { NamedTupleMember } from "typescript";
+// Project State Management Class...
+
+// this is the basic type that we wan tour functions to follow
+type Listener = (items: Project[]) => void;
+
+enum ProjectStatus {
+  Active,
+  Finsihed,
+}
+
+class Project {
+  constructor(
+    public id: string,
+    public title: string,
+    public description: string,
+    public people: number,
+    public status: ProjectStatus
+  ) {}
+}
+
+class ProjectState {
+  private listeners: any[] = [];
+  private projects: Project[] = [];
+  private static instance: ProjectState;
+
+  private constructor() {
+    console.log("From the Project State");
+  }
+
+  static getInstance() {
+    if (this.instance) {
+      return this.instance;
+    } else {
+      this.instance = new ProjectState();
+      return this.instance;
+    }
+  }
+
+  addListener(listeneruFn: Listener) {
+    this.listeners.push(listeneruFn);
+  }
+
+  addProject(title: string, description: string, people: number) {
+    console.log("Add Project Running");
+    const newProject = new Project(
+      Math.random().toString(),
+      title,
+      description,
+      people,
+      ProjectStatus.Active
+    );
+
+    this.projects.push(newProject);
+
+    // calling all the function of the this.listeners here using for of loop
+    // and editing the this.projects using the listeners function here..
+    for (const listenerFn of this.listeners) {
+      listenerFn(this.projects.slice());
+    }
+  }
+
+  // some question
+  // how to we call that from iside the another class
+  // how to access the projects when it gets updated
+  // we will create an instanceas of the project.. a global instance and helps us to get products from the class and we will use that in the app
+}
+
+const projectState = ProjectState.getInstance();
 
 interface Validatable {
   value: string;
@@ -16,6 +83,7 @@ class ProjectInput {
   peopleInputElement: HTMLInputElement;
 
   constructor() {
+    console.log("input element created");
     this.hostElement = document.getElementById("app") as HTMLDivElement;
     this.templateElement = document.getElementById(
       "project-input"
@@ -45,7 +113,6 @@ class ProjectInput {
     const enteredDescription = this.descriptionInputElement.value;
     const enteredPeople = this.peopleInputElement.value;
 
-    // this is the basic validation and we can also use a interface and validate handler to validate it better
     if (
       enteredDescription.trim().length === 0 ||
       enteredTitle.trim().length == 0 ||
@@ -54,6 +121,7 @@ class ProjectInput {
       alert("Invalid input entered, please try again..");
       return;
     } else {
+      // here we are returning a string | string | number
       return [enteredTitle, enteredDescription, +enteredPeople];
     }
   }
@@ -61,7 +129,12 @@ class ProjectInput {
   private submitHandler(e: Event) {
     e.preventDefault();
     const userInput = this.gatherInput();
-    console.log(userInput);
+
+    if (Array.isArray(userInput)) {
+      console.log(userInput);
+      const [title, desc, people] = userInput;
+      projectState?.addProject(title, desc, people);
+    }
   }
 
   private attach() {
@@ -73,14 +146,63 @@ class ProjectInput {
   }
 }
 
-/**
- * Steps that we need to follow
- * First create a ProjectInput class
- * create a projectList class
- * third create a project state class and then use that to map it to the list that were created in the second step
- */
+class ProjectList {
+  templateElement: HTMLTemplateElement;
+  hostElement: HTMLDivElement;
+  element: HTMLElement;
+  assignedProjects: Project[];
+
+  constructor(private type: "active" | "finished") {
+    this.hostElement = document.getElementById("app")! as HTMLDivElement;
+    this.templateElement = document.getElementById(
+      "project-list"
+    )! as HTMLTemplateElement;
+
+    this.assignedProjects = [];
+    const html = document.importNode(this.templateElement.content, true);
+    this.element = html.firstElementChild as HTMLElement;
+    this.element.id = `${this.type}-projects`;
+
+    projectState.addListener((projects: any[]) => {
+      // get a list of projects
+      this.assignedProjects = projects;
+      console.log(this.assignedProjects); // this is we are checking the whether the assigned projects are updated or not..
+      this.renderProjects();
+    });
+
+    this.attach();
+    this.rendorContent();
+  }
+
+  private renderProjects() {
+    const listElement = document.getElementById(
+      `${this.type}-projects-list`
+    )! as HTMLUListElement;
+
+    for (const projectItems of this.assignedProjects) {
+      const listItem = document.createElement("li");
+      listElement.textContent = projectItems.title;
+
+      listElement?.appendChild(listItem);
+    }
+  }
+
+  private attach() {
+    this.hostElement.insertAdjacentElement("beforeend", this.element);
+  }
+
+  private rendorContent() {
+    const listId = `${this.type}-projects-list`;
+    this.element.querySelector("ul")!.id = listId;
+    this.element.querySelector("h2")!.textContent =
+      this.type.toUpperCase() + "PROJECTS";
+  }
+}
 
 const projectInput = new ProjectInput();
+const activeProjectList = new ProjectList("active");
+const finishedProjectList = new ProjectList("finished");
+// const projectState = new ProjectState();
 
 /**
  * Steps in implementing the Project input
@@ -90,5 +212,18 @@ const projectInput = new ProjectInput();
  * attach
  * configure
  * submithandler
- *
  */
+
+/**
+ * Second step is to implement a list container elemnts on the DOM
+ * First select them and render them using some conditional CSS
+ * DO IT
+ * similar to how you implemented attach configure in the input element
+ */
+
+// Approach1
+// we can add addProject method in the projectList component..
+
+// Approach2
+// we can build a class that manages the state of the app..
+// and that class enables us to set up listener at different parts of the app...
