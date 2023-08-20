@@ -1,30 +1,39 @@
-// Project State Management Class...
+// this is used to create a form and accept user input
 
-// this is the basic type that we wan tour functions to follow
-type Listener = (items: Project[]) => void;
+// abstract class Component<T, U> {
+//   hostElement: T;
+//   templateElement: HTMLTemplateElement;
+//   element: U;
 
-enum ProjectStatus {
-  Active,
-  Finsihed,
-}
+//   constructor(
+//     hostElementId: string,
+//     templateId: string,
+//     elementId: string
+//     // elementAtStart: boolean
+//   ) {
+//     this.hostElement = document.getElementById(hostElementId)! as T;
+//     this.templateElement = document.getElementById(
+//       templateId
+//     ) as HTMLTemplateElement;
 
-class Project {
-  constructor(
-    public id: string,
-    public title: string,
-    public description: string,
-    public people: number,
-    public status: ProjectStatus
-  ) {}
-}
+//     const html = document.importNode(this.templateElement.content, true);
+//     this.element = html.firstElementChild as U;
+//     // this.element.id = elementId;
+//   }
 
+//   abstract attach(): void;
+//   abstract configure(): void;
+// }
+
+//
 class ProjectState {
-  private listeners: any[] = [];
-  private projects: Project[] = [];
+  assignedProjects: any[] = [];
   private static instance: ProjectState;
 
   private constructor() {
-    console.log("From the Project State");
+    // ensuring the this is singleton class
+    // using private constructor...
+    console.log("From the Project State Class...");
   }
 
   static getInstance() {
@@ -36,64 +45,38 @@ class ProjectState {
     }
   }
 
-  addListener(listeneruFn: Listener) {
-    this.listeners.push(listeneruFn);
-  }
-
   addProject(title: string, description: string, people: number) {
-    console.log("Add Project Running");
-    const newProject = new Project(
-      Math.random().toString(),
-      title,
-      description,
-      people,
-      ProjectStatus.Active
-    );
-
-    this.projects.push(newProject);
-
-    // calling all the function of the this.listeners here using for of loop
-    // and editing the this.projects using the listeners function here..
-    for (const listenerFn of this.listeners) {
-      listenerFn(this.projects.slice());
-    }
+    const newProject = {
+      title: title,
+      description: description,
+      people: people,
+      id: Math.random().toString(),
+    };
+    this.assignedProjects.push(newProject);
   }
-
-  // some question
-  // how to we call that from iside the another class
-  // how to access the projects when it gets updated
-  // we will create an instanceas of the project.. a global instance and helps us to get products from the class and we will use that in the app
 }
 
 const projectState = ProjectState.getInstance();
 
-interface Validatable {
-  value: string;
-  required: boolean;
-  max: number;
-  min: number;
-}
-
 class ProjectInput {
   hostElement: HTMLDivElement;
   templateElement: HTMLTemplateElement;
-  element: HTMLFormElement;
+  element: HTMLElement;
   titleInputElement: HTMLInputElement;
   descriptionInputElement: HTMLInputElement;
   peopleInputElement: HTMLInputElement;
 
   constructor() {
-    console.log("input element created");
-    this.hostElement = document.getElementById("app") as HTMLDivElement;
+    this.hostElement = document.getElementById("app")! as HTMLDivElement;
     this.templateElement = document.getElementById(
       "project-input"
-    ) as HTMLTemplateElement;
+    )! as HTMLTemplateElement;
 
     const html = document.importNode(this.templateElement.content, true);
     this.element = html.firstElementChild as HTMLFormElement;
     this.element.id = "user-input";
 
-    // selecting the elements inside the element here
+    // selecting the elements in the this.element from the HTML
     this.titleInputElement = this.element.querySelector(
       "#title"
     ) as HTMLInputElement;
@@ -104,37 +87,9 @@ class ProjectInput {
       "#people"
     ) as HTMLInputElement;
 
+    //
     this.attach();
     this.configure();
-  }
-
-  private gatherInput(): [string, string, number] | void {
-    const enteredTitle = this.titleInputElement.value;
-    const enteredDescription = this.descriptionInputElement.value;
-    const enteredPeople = this.peopleInputElement.value;
-
-    if (
-      enteredDescription.trim().length === 0 ||
-      enteredTitle.trim().length == 0 ||
-      enteredPeople.trim().length == 0
-    ) {
-      alert("Invalid input entered, please try again..");
-      return;
-    } else {
-      // here we are returning a string | string | number
-      return [enteredTitle, enteredDescription, +enteredPeople];
-    }
-  }
-
-  private submitHandler(e: Event) {
-    e.preventDefault();
-    const userInput = this.gatherInput();
-
-    if (Array.isArray(userInput)) {
-      console.log(userInput);
-      const [title, desc, people] = userInput;
-      projectState?.addProject(title, desc, people);
-    }
   }
 
   private attach() {
@@ -144,13 +99,31 @@ class ProjectInput {
   private configure() {
     this.element.addEventListener("submit", this.submitHandler.bind(this));
   }
+
+  private submitHandler(e: Event) {
+    e.preventDefault();
+    const userInput = this.gatherInput();
+    const [title, description, people] = userInput;
+    console.log(title, description, people);
+    // sedning data to the projectState using the addProject that exist on the instance of the project state class...
+    projectState.addProject(title, description, people);
+  }
+
+  private gatherInput(): [string, string, number] {
+    const enteredTitle = this.titleInputElement.value;
+    const enteredDescription = this.descriptionInputElement.value;
+    const enteredPeople = this.peopleInputElement.value;
+
+    // validate all inputs here
+    // return the elements here.. in the tuple array structure
+    return [enteredTitle, enteredDescription, +enteredPeople];
+  }
 }
 
 class ProjectList {
-  templateElement: HTMLTemplateElement;
   hostElement: HTMLDivElement;
+  templateElement: HTMLTemplateElement;
   element: HTMLElement;
-  assignedProjects: Project[];
 
   constructor(private type: "active" | "finished") {
     this.hostElement = document.getElementById("app")! as HTMLDivElement;
@@ -158,33 +131,17 @@ class ProjectList {
       "project-list"
     )! as HTMLTemplateElement;
 
-    this.assignedProjects = [];
     const html = document.importNode(this.templateElement.content, true);
     this.element = html.firstElementChild as HTMLElement;
     this.element.id = `${this.type}-projects`;
 
-    projectState.addListener((projects: any[]) => {
-      // get a list of projects
-      this.assignedProjects = projects;
-      console.log(this.assignedProjects); // this is we are checking the whether the assigned projects are updated or not..
-      this.renderProjects();
-    });
+    // here we will get the projects from the projectState and then we will rendor them using loop and rendorProjects method..
+    // for (const projects of assignedProjects){
+    //   this.rendorProjects(projects)
+    // }
 
     this.attach();
     this.rendorContent();
-  }
-
-  private renderProjects() {
-    const listElement = document.getElementById(
-      `${this.type}-projects-list`
-    )! as HTMLUListElement;
-
-    for (const projectItems of this.assignedProjects) {
-      const listItem = document.createElement("li");
-      listElement.textContent = projectItems.title;
-
-      listElement?.appendChild(listItem);
-    }
   }
 
   private attach() {
@@ -193,37 +150,20 @@ class ProjectList {
 
   private rendorContent() {
     const listId = `${this.type}-projects-list`;
+    // adding the id to the unordered list so that we can select it later if we need it..
     this.element.querySelector("ul")!.id = listId;
     this.element.querySelector("h2")!.textContent =
       this.type.toUpperCase() + "PROJECTS";
   }
+
+  // private rendorProjects() {}
 }
 
 const projectInput = new ProjectInput();
-const activeProjectList = new ProjectList("active");
-const finishedProjectList = new ProjectList("finished");
-// const projectState = new ProjectState();
+const activeList = new ProjectList("active");
+const finsihedList = new ProjectList("finished");
 
-/**
- * Steps in implementing the Project input
- *
- * Get the Elemenst : Host, element , template
- * Display it on the DOM using the
- * attach
- * configure
- * submithandler
- */
-
-/**
- * Second step is to implement a list container elemnts on the DOM
- * First select them and render them using some conditional CSS
- * DO IT
- * similar to how you implemented attach configure in the input element
- */
-
-// Approach1
-// we can add addProject method in the projectList component..
-
-// Approach2
-// we can build a class that manages the state of the app..
-// and that class enables us to set up listener at different parts of the app...
+// NEXT TASKS
+// now we have the data state updated and now we have to send the data to the project list and render the same to the DOM
+// second we need to use enums and filter the list and show the same accordingly...
+// for the second task we need to write a method that renderProjects in the ProjectList class so that we render them on to the screen...
