@@ -1,33 +1,25 @@
-// this is used to create a form and accept user input
+// this is just a function that we use in our app
+type Listener = (items: Project[]) => void;
 
-// abstract class Component<T, U> {
-//   hostElement: T;
-//   templateElement: HTMLTemplateElement;
-//   element: U;
+enum ProjectStatus {
+  Active,
+  Finished,
+}
 
-//   constructor(
-//     hostElementId: string,
-//     templateId: string,
-//     elementId: string
-//     // elementAtStart: boolean
-//   ) {
-//     this.hostElement = document.getElementById(hostElementId)! as T;
-//     this.templateElement = document.getElementById(
-//       templateId
-//     ) as HTMLTemplateElement;
+// not a type or a instance because we want to intiate the class..
+class Project {
+  constructor(
+    public id: string,
+    public title: string,
+    public description: string,
+    public people: number,
+    public status: ProjectStatus
+  ) {}
+}
 
-//     const html = document.importNode(this.templateElement.content, true);
-//     this.element = html.firstElementChild as U;
-//     // this.element.id = elementId;
-//   }
-
-//   abstract attach(): void;
-//   abstract configure(): void;
-// }
-
-//
 class ProjectState {
-  assignedProjects: any[] = [];
+  projects: Project[] = [];
+  private listeners: any[] = [];
   private static instance: ProjectState;
 
   private constructor() {
@@ -46,13 +38,22 @@ class ProjectState {
   }
 
   addProject(title: string, description: string, people: number) {
-    const newProject = {
-      title: title,
-      description: description,
-      people: people,
-      id: Math.random().toString(),
-    };
-    this.assignedProjects.push(newProject);
+    const newProject = new Project(
+      Math.random().toString(),
+      title,
+      description,
+      people,
+      ProjectStatus.Active // here we are using an enum to create a project type...
+    );
+    this.projects.push(newProject);
+
+    for (const listeners of this.listeners) {
+      listeners(this.projects.slice());
+    }
+  }
+
+  addListeners(listenersFn: Function) {
+    this.listeners.push(listenersFn);
   }
 }
 
@@ -107,6 +108,7 @@ class ProjectInput {
     console.log(title, description, people);
     // sedning data to the projectState using the addProject that exist on the instance of the project state class...
     projectState.addProject(title, description, people);
+    this.clearInputs();
   }
 
   private gatherInput(): [string, string, number] {
@@ -118,27 +120,43 @@ class ProjectInput {
     // return the elements here.. in the tuple array structure
     return [enteredTitle, enteredDescription, +enteredPeople];
   }
+
+  private clearInputs() {
+    this.titleInputElement.value = "";
+    this.descriptionInputElement.value = "";
+    this.peopleInputElement.value = "";
+  }
 }
 
 class ProjectList {
   hostElement: HTMLDivElement;
   templateElement: HTMLTemplateElement;
   element: HTMLElement;
+  assignedProjects: Project[] = [];
 
   constructor(private type: "active" | "finished") {
     this.hostElement = document.getElementById("app")! as HTMLDivElement;
     this.templateElement = document.getElementById(
       "project-list"
     )! as HTMLTemplateElement;
+    this.assignedProjects = []; // why this!!
 
     const html = document.importNode(this.templateElement.content, true);
     this.element = html.firstElementChild as HTMLElement;
     this.element.id = `${this.type}-projects`;
 
-    // here we will get the projects from the projectState and then we will rendor them using loop and rendorProjects method..
-    // for (const projects of assignedProjects){
-    //   this.rendorProjects(projects)
-    // }
+    projectState.addListeners((projects: Project[]) => {
+      // filtering the projects
+      let relevantprojects = projects.filter((project) => {
+        if (this.type === "active") {
+          return project.status === ProjectStatus.Active;
+        } else {
+          return project.status === ProjectStatus.Finished;
+        }
+      });
+      this.assignedProjects = relevantprojects;
+      this.rendorProjects();
+    });
 
     this.attach();
     this.rendorContent();
@@ -150,20 +168,27 @@ class ProjectList {
 
   private rendorContent() {
     const listId = `${this.type}-projects-list`;
-    // adding the id to the unordered list so that we can select it later if we need it..
     this.element.querySelector("ul")!.id = listId;
     this.element.querySelector("h2")!.textContent =
       this.type.toUpperCase() + "PROJECTS";
   }
 
-  // private rendorProjects() {}
+  private rendorProjects() {
+    const listEl = document.getElementById(
+      `${this.type}-projects-list`
+    )! as HTMLUListElement;
+    listEl.innerHTML = "";
+    for (const projectItem of this.assignedProjects) {
+      // benfits of the Project class is that here we get the auto completion...
+      const listItem = document.createElement("li");
+      listItem.textContent = projectItem.title;
+      listEl?.append(listItem);
+    }
+  }
 }
 
 const projectInput = new ProjectInput();
 const activeList = new ProjectList("active");
 const finsihedList = new ProjectList("finished");
 
-// NEXT TASKS
-// now we have the data state updated and now we have to send the data to the project list and render the same to the DOM
-// second we need to use enums and filter the list and show the same accordingly...
-// for the second task we need to write a method that renderProjects in the ProjectList class so that we render them on to the screen...
+// Problems to solve...
