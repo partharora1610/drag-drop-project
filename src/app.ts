@@ -1,12 +1,14 @@
-// this is just a function that we use in our app
+// This is listener type that is a function this allows us to add more strict checking..
 type Listener = (items: Project[]) => void;
 
+// This is enum that allows us to set the project status using the emuns
+// understand that how this is working internally...
 enum ProjectStatus {
   Active,
   Finished,
 }
 
-// not a type or a instance because we want to intiate the class..
+// This is a Project Class that allows us to instantiate the Project from anywhere in the apps
 class Project {
   constructor(
     public id: string,
@@ -17,14 +19,50 @@ class Project {
   ) {}
 }
 
+// This is a abstract class that allows us to create HTML components like host , templateEl , element and then attach it to the DOM..
+abstract class Component<T extends HTMLDivElement, U extends HTMLElement> {
+  hostElement: T;
+  templateElement: HTMLTemplateElement;
+  element: U;
+
+  constructor(
+    hostId: string,
+    templateId: string,
+    insertAtStart: boolean,
+    elementId?: string
+  ) {
+    this.hostElement = document.getElementById(hostId)! as T;
+    this.templateElement = document.getElementById(
+      templateId
+    )! as HTMLTemplateElement;
+
+    const importNode = document.importNode(this.templateElement.content, true);
+    this.element = importNode.firstElementChild as U;
+
+    if (elementId) {
+      this.element.id = elementId;
+    }
+    this.attach(insertAtStart);
+  }
+
+  private attach(atStart: boolean) {
+    this.hostElement.insertAdjacentElement(
+      atStart ? "afterbegin" : "beforeend",
+      this.element
+    );
+  }
+
+  abstract configure(): void;
+  abstract renderContent(): void;
+}
+
+// This creates a common state of the project that allows us to maintain the app data and functions in a common place..
 class ProjectState {
   projects: Project[] = [];
   private listeners: any[] = [];
   private static instance: ProjectState;
 
   private constructor() {
-    // ensuring the this is singleton class
-    // using private constructor...
     console.log("From the Project State Class...");
   }
 
@@ -43,7 +81,7 @@ class ProjectState {
       title,
       description,
       people,
-      ProjectStatus.Active // here we are using an enum to create a project type...
+      ProjectStatus.Active // using an enum to give the project status:=:
     );
     this.projects.push(newProject);
 
@@ -57,27 +95,16 @@ class ProjectState {
   }
 }
 
+// initiating a projectState
 const projectState = ProjectState.getInstance();
 
-class ProjectInput {
-  hostElement: HTMLDivElement;
-  templateElement: HTMLTemplateElement;
-  element: HTMLElement;
+class ProjectInput extends Component<HTMLDivElement, HTMLElement> {
   titleInputElement: HTMLInputElement;
   descriptionInputElement: HTMLInputElement;
   peopleInputElement: HTMLInputElement;
 
   constructor() {
-    this.hostElement = document.getElementById("app")! as HTMLDivElement;
-    this.templateElement = document.getElementById(
-      "project-input"
-    )! as HTMLTemplateElement;
-
-    const html = document.importNode(this.templateElement.content, true);
-    this.element = html.firstElementChild as HTMLFormElement;
-    this.element.id = "user-input";
-
-    // selecting the elements in the this.element from the HTML
+    super("app", "project-input", true, "user-input");
     this.titleInputElement = this.element.querySelector(
       "#title"
     ) as HTMLInputElement;
@@ -87,18 +114,16 @@ class ProjectInput {
     this.peopleInputElement = this.element.querySelector(
       "#people"
     ) as HTMLInputElement;
-
-    //
-    this.attach();
     this.configure();
+    this.renderContent();
   }
 
-  private attach() {
-    this.hostElement.insertAdjacentElement("afterbegin", this.element);
-  }
-
-  private configure() {
+  configure() {
     this.element.addEventListener("submit", this.submitHandler.bind(this));
+  }
+
+  renderContent() {
+    console.log("This is a render content from ProjectInput component..");
   }
 
   private submitHandler(e: Event) {
@@ -106,7 +131,6 @@ class ProjectInput {
     const userInput = this.gatherInput();
     const [title, description, people] = userInput;
     console.log(title, description, people);
-    // sedning data to the projectState using the addProject that exist on the instance of the project state class...
     projectState.addProject(title, description, people);
     this.clearInputs();
   }
@@ -116,7 +140,7 @@ class ProjectInput {
     const enteredDescription = this.descriptionInputElement.value;
     const enteredPeople = this.peopleInputElement.value;
 
-    // validate all inputs here
+    // validate all inputs here...
     // return the elements here.. in the tuple array structure
     return [enteredTitle, enteredDescription, +enteredPeople];
   }
@@ -128,25 +152,19 @@ class ProjectInput {
   }
 }
 
-class ProjectList {
-  hostElement: HTMLDivElement;
-  templateElement: HTMLTemplateElement;
-  element: HTMLElement;
+class ProjectList extends Component<HTMLDivElement, HTMLElement> {
   assignedProjects: Project[] = [];
 
   constructor(private type: "active" | "finished") {
-    this.hostElement = document.getElementById("app")! as HTMLDivElement;
-    this.templateElement = document.getElementById(
-      "project-list"
-    )! as HTMLTemplateElement;
-    this.assignedProjects = []; // why this!!
+    super("app", "project-list", false, `${type}-projects`);
+    this.assignedProjects = [];
 
-    const html = document.importNode(this.templateElement.content, true);
-    this.element = html.firstElementChild as HTMLElement;
-    this.element.id = `${this.type}-projects`;
+    this.configure();
+    this.renderContent();
+  }
 
+  configure() {
     projectState.addListeners((projects: Project[]) => {
-      // filtering the projects
       let relevantprojects = projects.filter((project) => {
         if (this.type === "active") {
           return project.status === ProjectStatus.Active;
@@ -157,16 +175,9 @@ class ProjectList {
       this.assignedProjects = relevantprojects;
       this.rendorProjects();
     });
-
-    this.attach();
-    this.rendorContent();
   }
 
-  private attach() {
-    this.hostElement.insertAdjacentElement("beforeend", this.element);
-  }
-
-  private rendorContent() {
+  renderContent() {
     const listId = `${this.type}-projects-list`;
     this.element.querySelector("ul")!.id = listId;
     this.element.querySelector("h2")!.textContent =
@@ -179,7 +190,6 @@ class ProjectList {
     )! as HTMLUListElement;
     listEl.innerHTML = "";
     for (const projectItem of this.assignedProjects) {
-      // benfits of the Project class is that here we get the auto completion...
       const listItem = document.createElement("li");
       listItem.textContent = projectItem.title;
       listEl?.append(listItem);
@@ -187,8 +197,7 @@ class ProjectList {
   }
 }
 
+// intiating the classes
 const projectInput = new ProjectInput();
 const activeList = new ProjectList("active");
 const finsihedList = new ProjectList("finished");
-
-// Problems to solve...
