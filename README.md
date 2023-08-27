@@ -1,1 +1,3 @@
-This is the project where I am buiding a simple drag and drop component to practice typescript...
+## What the project
+
+In this project I created a simple drag and drop project
