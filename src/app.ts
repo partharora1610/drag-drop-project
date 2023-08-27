@@ -1,14 +1,22 @@
-// This is listener type that is a function this allows us to add more strict checking..
+interface Draggable {
+  dragStartHandler(e: DragEvent): void;
+  dragEndHanlder(e: DragEvent): void;
+}
+
+interface DragTarget {
+  dragOverHandler(e: DragEvent): void;
+  dropHandler(e: DragEvent): void;
+  dragLeaveHandler(e: DragEvent): void;
+}
+
 type Listener = (items: Project[]) => void;
 
-// This is enum that allows us to set the project status using the emuns
-// understand that how this is working internally...
 enum ProjectStatus {
   Active,
   Finished,
 }
 
-// This is a Project Class that allows us to instantiate the Project from anywhere in the apps
+// why using a class Project and not a type...
 class Project {
   constructor(
     public id: string,
@@ -19,8 +27,7 @@ class Project {
   ) {}
 }
 
-// This is a abstract class that allows us to create HTML components like host , templateEl , element and then attach it to the DOM..
-abstract class Component<T extends HTMLDivElement, U extends HTMLElement> {
+abstract class Component<T extends HTMLElement, U extends HTMLElement> {
   hostElement: T;
   templateElement: HTMLTemplateElement;
   element: U;
@@ -56,7 +63,10 @@ abstract class Component<T extends HTMLDivElement, U extends HTMLElement> {
   abstract renderContent(): void;
 }
 
-// This creates a common state of the project that allows us to maintain the app data and functions in a common place..
+class State {
+  constructor() {}
+}
+
 class ProjectState {
   projects: Project[] = [];
   private listeners: any[] = [];
@@ -90,12 +100,13 @@ class ProjectState {
     }
   }
 
+  moveProject() {}
+
   addListeners(listenersFn: Function) {
     this.listeners.push(listenersFn);
   }
 }
 
-// initiating a projectState
 const projectState = ProjectState.getInstance();
 
 class ProjectInput extends Component<HTMLDivElement, HTMLElement> {
@@ -152,7 +163,10 @@ class ProjectInput extends Component<HTMLDivElement, HTMLElement> {
   }
 }
 
-class ProjectList extends Component<HTMLDivElement, HTMLElement> {
+class ProjectList
+  extends Component<HTMLDivElement, HTMLElement>
+  implements DragTarget
+{
   assignedProjects: Project[] = [];
 
   constructor(private type: "active" | "finished") {
@@ -163,7 +177,35 @@ class ProjectList extends Component<HTMLDivElement, HTMLElement> {
     this.renderContent();
   }
 
+  dragOverHandler(e: DragEvent): void {
+    if (e.dataTransfer && e.dataTransfer!.types[0] === "text/plain") {
+      // read more about why e.preventDeafult here..
+      e.preventDefault();
+      const listId = this.element.querySelector("ul")!;
+      listId.classList.add("droppable");
+    }
+  }
+
+  dropHandler(e: DragEvent): void {
+    const projectId = e.dataTransfer!.getData("text/plain");
+    console.log(projectId);
+  }
+
+  dragLeaveHandler(_: DragEvent): void {
+    const listId = this.element.querySelector("ul")!;
+    listId.classList.remove("droppable");
+
+    // get the data using the this.project.id we get from e
+  }
+
   configure() {
+    this.element.addEventListener("dragover", this.dragOverHandler.bind(this));
+    this.element.addEventListener("drop", this.dropHandler.bind(this));
+    this.element.addEventListener(
+      "dragleave",
+      this.dragLeaveHandler.bind(this)
+    );
+
     projectState.addListeners((projects: Project[]) => {
       let relevantprojects = projects.filter((project) => {
         if (this.type === "active") {
@@ -189,11 +231,51 @@ class ProjectList extends Component<HTMLDivElement, HTMLElement> {
       `${this.type}-projects-list`
     )! as HTMLUListElement;
     listEl.innerHTML = "";
+
+    // the projects are again getting rendered multiple times??
+    // solves this we were not adding the elements in the right container earlier
     for (const projectItem of this.assignedProjects) {
-      const listItem = document.createElement("li");
-      listItem.textContent = projectItem.title;
-      listEl?.append(listItem);
+      new ProjectItem(this.element.querySelector("ul")!.id, projectItem);
     }
+  }
+}
+
+class ProjectItem
+  extends Component<HTMLUListElement, HTMLLIElement>
+  implements Draggable
+{
+  private project: Project;
+  constructor(hostId: string, project: Project) {
+    super(hostId, "single-project", false, project.id);
+    this.project = project;
+
+    this.configure();
+    this.renderContent();
+  }
+
+  dragStartHandler(e: DragEvent): void {
+    e.dataTransfer!.setData("text/plain", this.project.id);
+    e.dataTransfer!.effectAllowed = "move";
+  }
+
+  dragEndHanlder(e: DragEvent): void {
+    console.log(e);
+    console.log("Drag Ended..");
+  }
+
+  configure(): void {
+    this.element.addEventListener(
+      "dragstart",
+      this.dragStartHandler.bind(this)
+    );
+    this.element.addEventListener("dragend", this.dragEndHanlder.bind(this));
+  }
+
+  renderContent(): void {
+    this.element.querySelector("h2")!.textContent = this.project.title;
+    this.element.querySelector("h3")!.textContent =
+      this.project.people.toString();
+    this.element.querySelector("p")!.textContent = this.project.description;
   }
 }
 
@@ -201,3 +283,6 @@ class ProjectList extends Component<HTMLDivElement, HTMLElement> {
 const projectInput = new ProjectInput();
 const activeList = new ProjectList("active");
 const finsihedList = new ProjectList("finished");
+
+// What is left
+// just creating a move project function and setting it up!!
